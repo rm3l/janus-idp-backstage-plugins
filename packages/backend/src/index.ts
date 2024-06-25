@@ -48,4 +48,7 @@ backend.add(import('@backstage/plugin-search-backend/alpha'));
 backend.add(import('@backstage/plugin-search-backend-module-catalog/alpha'));
 backend.add(import('@backstage/plugin-search-backend-module-techdocs/alpha'));
 
+// Bulk import plugin
+backend.add(import('@janus-idp/backstage-plugin-bulk-import-backend/alpha'));
+
 backend.start();

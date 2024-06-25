@@ -9,6 +9,7 @@ import { formatDate } from '@janus-idp/shared-react';
 import {
   AddedRepositories,
   AddRepositoriesData,
+  ImportStatus,
   Order,
   RepositoryStatus,
 } from '../types';
@@ -22,10 +23,11 @@ const descendingComparator = (
   let value1 = get(a, orderBy);
   let value2 = get(b, orderBy);
   const order = {
-    [RepositoryStatus.Exists]: 1,
+    [RepositoryStatus.ADDED]: 1,
     [RepositoryStatus.Ready]: 2,
-    [RepositoryStatus.NotGenerated]: 3,
-    [RepositoryStatus.Failed]: 4,
+    [RepositoryStatus.WAIT_PR_APPROVAL]: 3,
+    [RepositoryStatus.PR_ERROR]: 4,
+    [RepositoryStatus.NotGenerated]: 5,
   };
 
   if (orderBy === 'selectedRepositories') {
@@ -38,21 +40,21 @@ const descendingComparator = (
       value1 =
         order[
           (a.selectedRepositories?.[0]?.catalogInfoYaml
-            ?.status as RepositoryStatus) || RepositoryStatus.NotGenerated
+            ?.status as ImportStatus) || RepositoryStatus.NotGenerated
         ];
       value2 =
         order[
           (b.selectedRepositories?.[0]?.catalogInfoYaml
-            ?.status as RepositoryStatus) || RepositoryStatus.NotGenerated
+            ?.status as ImportStatus) || RepositoryStatus.NotGenerated
         ];
     } else {
       value1 =
         order[
-          (value1?.status as RepositoryStatus) || RepositoryStatus.NotGenerated
+          (value1?.status as ImportStatus) || RepositoryStatus.NotGenerated
         ];
       value2 =
         order[
-          (value2?.status as RepositoryStatus) || RepositoryStatus.NotGenerated
+          (value2?.status as ImportStatus) || RepositoryStatus.NotGenerated
         ];
     }
   }
@@ -94,7 +96,7 @@ export const createData = (
   id: number,
   name: string,
   url: string,
-  catalogInfoYamlStatus: string,
+  catalogInfoYamlStatus: ImportStatus,
   entityOwner: string,
   organization?: string,
 ): AddRepositoriesData => {
@@ -115,7 +117,7 @@ export const createData = (
 export const createOrganizationData = (
   repositories: AddRepositoriesData[],
 ): AddRepositoriesData[] => {
-  return repositories.reduce(
+  return repositories?.reduce(
     (acc: AddRepositoriesData[], repo: AddRepositoriesData) => {
       const org = acc.find(a => a.organizationUrl === repo.organizationUrl);
       if (org?.repositories) {
@@ -123,7 +125,7 @@ export const createOrganizationData = (
       } else {
         acc.push({
           id: repo.id,
-          orgName: repo.organizationUrl,
+          orgName: repo.orgName,
           organizationUrl: repo.organizationUrl,
           repositories: [repo],
           selectedRepositories: [],
@@ -239,17 +241,17 @@ export const getNewOrgsData = (
   newSelected: number[],
   id: number,
 ) => {
-  const orgId = orgsData.find(
+  const orgId = orgsData?.find(
     org => org.orgName === reposData.find(repo => repo.id === id)?.orgName,
   )?.id;
 
   const selectedRepositories = newSelected.filter(selId =>
     orgsData
-      .find(org => org.id === orgId)
+      ?.find(org => org.id === orgId)
       ?.repositories?.map(r => r.id)
       .includes(selId),
   );
-  const newOrgsData = orgsData.map(org => {
+  const newOrgsData = orgsData?.map(org => {
     if (org.id === orgId) {
       return {
         ...org,
