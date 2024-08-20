@@ -3912,6 +3912,15 @@
     "@backstage/plugin-auth-node" "^0.4.17"
     passport-github2 "^0.1.12"
 
+"@backstage/plugin-auth-backend-module-github-provider@^0.1.20":
+  version "0.1.21"
+  resolved "https://registry.yarnpkg.com/@backstage/plugin-auth-backend-module-github-provider/-/plugin-auth-backend-module-github-provider-0.1.21.tgz#b4a70cfb1f6fafacaf5eb43c98b55da2b4e16808"
+  integrity sha512-qBhswVCnisj+uClNYlTIWcD27ojDj7XS98oKAbaqA6loBGXCJbHzQzzKeb2kJazPDcBCJi7C1WugNItEGwrYZg==
+  dependencies:
+    "@backstage/backend-plugin-api" "^0.8.1"
+    "@backstage/plugin-auth-node" "^0.5.1"
+    passport-github2 "^0.1.12"
+
 "@backstage/plugin-auth-backend-module-gitlab-provider@^0.1.19":
   version "0.1.19"
   resolved "https://registry.yarnpkg.com/@backstage/plugin-auth-backend-module-gitlab-provider/-/plugin-auth-backend-module-gitlab-provider-0.1.19.tgz#e8296e566cb4be08529b81156402c90d3c4dc352"
