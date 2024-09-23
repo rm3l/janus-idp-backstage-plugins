@@ -18,11 +18,8 @@ import {
   getVoidLogger,
   PluginEndpointDiscovery,
 } from '@backstage/backend-common';
-import {
-  AuthService,
-  BackstageCredentials,
-  BackstagePrincipalTypes,
-} from '@backstage/backend-plugin-api';
+import { AuthService } from '@backstage/backend-plugin-api';
+import { mockServices } from '@backstage/backend-test-utils';
 import { CatalogClient } from '@backstage/catalog-client';
 import { ConfigReader, type Config } from '@backstage/config';
 
@@ -44,40 +41,35 @@ describe('catalogInfoGenerator', () => {
   let mockAuth: AuthService;
   let mockCatalogClient: CatalogClient;
 
-  beforeAll(() => {
+  beforeEach(() => {
     (fetch as unknown as jest.Mock).mockReturnValue(
       Promise.resolve({
         json: () => Promise.resolve({}),
       }),
     );
-    mockDiscovery = {
-      getBaseUrl: (pluginId: string) =>
-        Promise.resolve(`${mockBaseUrl}/my-${pluginId}`),
-      getExternalBaseUrl: (pluginId: string) =>
-        Promise.resolve(`${mockExternalBaseUrl}/my-${pluginId}`),
-    };
+    config = new ConfigReader({
+      catalog: {
+        import: {
+          entityFilename: 'my-catalog-info.yaml',
+        },
+      },
+    });
+    mockDiscovery = mockServices.discovery.mock({
+      getBaseUrl: async (pluginId: string) => {
+        return `${mockBaseUrl}/my-${pluginId}`;
+      },
+      getExternalBaseUrl: async (pluginId: string) => {
+        return `${mockExternalBaseUrl}/my-${pluginId}`;
+      },
+    });
     mockCatalogClient = {
       getEntities: jest.fn,
     } as unknown as CatalogClient;
-    mockAuth = {
-      isPrincipal<TType extends keyof BackstagePrincipalTypes>(
-        _credentials: BackstageCredentials,
-        _type: TType,
-      ): _credentials is BackstageCredentials<BackstagePrincipalTypes[TType]> {
-        return false;
-      },
-      getPluginRequestToken: () =>
-        Promise.resolve({ token: 'ey123.abc.xyzzz' }),
-      authenticate: jest.fn(),
-      getNoneCredentials: jest.fn(),
-      getOwnServiceCredentials: jest.fn().mockResolvedValue({
-        principal: {
-          subject: 'my-sub',
-        },
+    mockAuth = mockServices.auth.mock({
+      getPluginRequestToken: jest.fn().mockResolvedValue({
+        token: 'ey123.abc.xyzzz', // notsecret
       }),
-      getLimitedUserToken: jest.fn(),
-      listPublicServiceKeys: jest.fn(),
-    };
+    });
     catalogInfoGenerator = new CatalogInfoGenerator(
       logger,
       mockDiscovery,
@@ -86,16 +78,8 @@ describe('catalogInfoGenerator', () => {
     );
   });
 
-  beforeEach(() => {
+  afterEach(() => {
     jest.resetAllMocks();
-
-    config = new ConfigReader({
-      catalog: {
-        import: {
-          entityFilename: 'my-catalog-info.yaml',
-        },
-      },
-    });
   });
 
   it('should return a catalog url if no main branch is set', () => {
@@ -150,6 +134,7 @@ describe('catalogInfoGenerator', () => {
     await expect(
       catalogInfoGenerator.generateDefaultCatalogInfoContent(repoUrl),
     ).resolves.toBe(getDefaultCatalogInfo('my-org-3', 'my-repo-3'));
+    expect(mockDiscovery.getBaseUrl).toHaveBeenCalledWith('catalog');
     expect(fetch).toHaveBeenCalledWith(
       `${mockBaseUrl}/my-catalog/analyze-location`,
       {

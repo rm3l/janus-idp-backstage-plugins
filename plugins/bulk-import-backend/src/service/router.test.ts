@@ -150,7 +150,7 @@ describe('createRouter', () => {
   let mockCatalogInfoGenerator: CatalogInfoGenerator;
   let mockGithubApiService: GithubApiService;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     mockAuth = {
       isPrincipal<TType extends keyof BackstagePrincipalTypes>(
         _credentials: BackstageCredentials,
@@ -159,7 +159,9 @@ describe('createRouter', () => {
         return false;
       },
       getPluginRequestToken: () =>
-        Promise.resolve({ token: 'ey123.abc.xyzzz' }),
+        Promise.resolve({
+          token: 'ey123.abc.xyzzz', // notsecret
+        }),
       authenticate: jest.fn(),
       getNoneCredentials: jest.fn(),
       getOwnServiceCredentials: jest.fn().mockResolvedValue({
@@ -190,6 +192,8 @@ describe('createRouter', () => {
       configuration,
       mockCache,
     );
+    initializeGithubApiServiceMock();
+
     const router = await createRouter({
       logger: voidLogger,
       config: configuration,
@@ -204,10 +208,34 @@ describe('createRouter', () => {
     app = express().use(router);
   });
 
-  beforeEach(() => {
+  afterEach(() => {
     jest.resetAllMocks();
     jest.restoreAllMocks();
   });
+
+  function initializeGithubApiServiceMock() {
+    jest
+      .spyOn(mockGithubApiService, 'getRepositoriesFromIntegrations')
+      .mockResolvedValue({
+        repositories: [
+          {
+            name: 'A',
+            full_name: 'my-ent-org-1/A',
+            url: 'https://api.github.com/repos/my-ent-org-1/A',
+            html_url: 'https://github.com/my-ent-org-1/A',
+            default_branch: 'master',
+          },
+          {
+            name: 'B',
+            full_name: 'my-ent-org-1/B',
+            url: 'https://api.github.com/repos/my-ent-org-1/B',
+            html_url: 'https://github.com/my-ent-org-1/B',
+            default_branch: 'main',
+          },
+        ],
+        errors: [],
+      });
+  }
 
   describe('GET /ping', () => {
     it('returns ok when unauthenticated', async () => {
@@ -453,10 +481,10 @@ describe('createRouter', () => {
           ],
         });
 
-      const response = await request(app).get('/organizations');
+      const orgResp = await request(app).get('/organizations');
 
-      expect(response.status).toEqual(500);
-      expect(response.body).toEqual({
+      expect(orgResp.status).toEqual(500);
+      expect(orgResp.body).toEqual({
         errors: ['Github App with ID 1234567890 returned an error'],
       });
     });
@@ -465,40 +493,19 @@ describe('createRouter', () => {
   describe('GET /repositories', () => {
     it('returns 403 when denied by permission framework', async () => {
       mockedAuthorize.mockImplementation(denyAll);
-      const response = await request(app).get('/repositories');
-      expect(response.status).toEqual(403);
+      const reposResp = await request(app).get('/repositories');
+      expect(reposResp.status).toEqual(403);
     });
 
     it('returns 200 when repositories are fetched without errors', async () => {
       mockedAuthorize.mockImplementation(allowAll);
 
       jest
-        .spyOn(mockGithubApiService, 'getRepositoriesFromIntegrations')
-        .mockResolvedValue({
-          repositories: [
-            {
-              name: 'A',
-              full_name: 'my-ent-org-1/A',
-              url: 'https://api.github.com/repos/my-ent-org-1/A',
-              html_url: 'https://github.com/my-ent-org-1/A',
-              default_branch: 'master',
-            },
-            {
-              name: 'B',
-              full_name: 'my-ent-org-1/B',
-              url: 'https://api.github.com/repos/my-ent-org-1/B',
-              html_url: 'https://github.com/my-ent-org-1/B',
-              default_branch: 'main',
-            },
-          ],
-          errors: [],
-        });
-      jest
         .spyOn(mockGithubApiService, 'findImportOpenPr')
         .mockResolvedValue({});
       jest
         .spyOn(mockCatalogInfoGenerator, 'listCatalogUrlLocations')
-        .mockResolvedValue([]);
+        .mockResolvedValue({ targetUrls: [] });
 
       const response = await request(app).get('/repositories');
       expect(response.status).toEqual(200);
@@ -564,7 +571,7 @@ describe('createRouter', () => {
         .mockResolvedValue({});
       jest
         .spyOn(mockCatalogInfoGenerator, 'listCatalogUrlLocations')
-        .mockResolvedValue([]);
+        .mockResolvedValue({ targetUrls: [] });
 
       const response = await request(app).get('/repositories');
 
@@ -615,12 +622,12 @@ describe('createRouter', () => {
         .mockResolvedValue({});
       jest
         .spyOn(mockCatalogInfoGenerator, 'listCatalogUrlLocations')
-        .mockResolvedValue([]);
+        .mockResolvedValue({ targetUrls: [] });
 
-      const response = await request(app).get('/repositories');
+      const reposResp = await request(app).get('/repositories');
 
-      expect(response.status).toEqual(500);
-      expect(response.body).toEqual({
+      expect(reposResp.status).toEqual(500);
+      expect(reposResp.body).toEqual({
         errors: ['Github App with ID 1234567890 returned an error'],
       });
     });
@@ -701,7 +708,7 @@ describe('createRouter', () => {
         .mockResolvedValue({});
       jest
         .spyOn(mockCatalogInfoGenerator, 'listCatalogUrlLocations')
-        .mockResolvedValue([]);
+        .mockResolvedValue({ targetUrls: [] });
 
       let response = await request(app).get(
         '/organizations/my-ent-org-1/repositories',
@@ -804,7 +811,7 @@ describe('createRouter', () => {
         .mockResolvedValue({});
       jest
         .spyOn(mockCatalogInfoGenerator, 'listCatalogUrlLocations')
-        .mockResolvedValue([]);
+        .mockResolvedValue({ targetUrls: [] });
 
       const response = await request(app).get(
         '/organizations/some-org/repositories',
@@ -857,14 +864,14 @@ describe('createRouter', () => {
         .mockResolvedValue({});
       jest
         .spyOn(mockCatalogInfoGenerator, 'listCatalogUrlLocations')
-        .mockResolvedValue([]);
+        .mockResolvedValue({ targetUrls: [] });
 
-      const response = await request(app).get(
+      const orgReposResp = await request(app).get(
         '/organizations/some-org/repositories',
       );
 
-      expect(response.status).toEqual(500);
-      expect(response.body).toEqual({
+      expect(orgReposResp.status).toEqual(500);
+      expect(orgReposResp.body).toEqual({
         errors: ['Github App with ID 1234567890 returned an error'],
       });
     });
@@ -873,44 +880,28 @@ describe('createRouter', () => {
   describe('GET /imports', () => {
     it('returns 403 when denied by permission framework', async () => {
       mockedAuthorize.mockImplementation(denyAll);
-      const response = await request(app).get('/imports');
-      expect(response.status).toEqual(403);
+      const importsResp = await request(app).get('/imports');
+      expect(importsResp.status).toEqual(403);
     });
 
     it('returns 200 with empty list when there is nothing in catalog yet and no open PR for each repo', async () => {
       mockedAuthorize.mockImplementation(allowAll);
 
       jest
-        .spyOn(mockGithubApiService, 'getRepositoriesFromIntegrations')
-        .mockResolvedValue({
-          repositories: [
-            {
-              name: 'A',
-              full_name: 'my-ent-org-1/A',
-              url: 'https://api.github.com/repos/my-ent-org-1/A',
-              html_url: 'https://github.com/my-ent-org-1/A',
-              default_branch: 'master',
-            },
-            {
-              name: 'B',
-              full_name: 'my-ent-org-1/B',
-              url: 'https://api.github.com/repos/my-ent-org-1/B',
-              html_url: 'https://github.com/my-ent-org-1/B',
-              default_branch: 'main',
-            },
-          ],
-          errors: [],
-        });
-      jest
         .spyOn(mockGithubApiService, 'findImportOpenPr')
         .mockResolvedValue({});
       jest
         .spyOn(mockCatalogInfoGenerator, 'listCatalogUrlLocations')
-        .mockResolvedValue([]);
+        .mockResolvedValue({ targetUrls: [] });
 
       const response = await request(app).get('/imports');
       expect(response.status).toEqual(200);
-      expect(response.body).toEqual([]);
+      expect(response.body).toEqual({
+        imports: [],
+        page: 1,
+        size: 20,
+        totalCount: 0,
+      });
     });
 
     it('returns 200 with appropriate import status (with data coming from the repos and data coming from the app-config files)', async () => {
@@ -965,7 +956,10 @@ describe('createRouter', () => {
           mockCatalogInfoGenerator,
           'listCatalogUrlLocationsByIdFromLocationsEndpoint',
         )
-        .mockResolvedValue(fromLocationsEndpoint);
+        .mockResolvedValue({
+          locations: fromLocationsEndpoint,
+          totalCount: fromLocationsEndpoint.length,
+        });
       jest
         .spyOn(
           mockGithubApiService,
@@ -1071,107 +1065,112 @@ describe('createRouter', () => {
 
       const response = await request(app).get('/imports');
       expect(response.status).toEqual(200);
-      expect(response.body).toEqual([
-        {
-          approvalTool: 'GIT',
-          id: 'https://github.com/my-ent-org-1/A1',
-          repository: {
-            name: 'A1',
-            organization: 'my-ent-org-1',
-            url: 'https://github.com/my-ent-org-1/A1',
-            defaultBranch: 'dev',
-            id: 'my-ent-org-1/A1',
-          },
-          status: 'ADDED',
-        },
-        {
-          approvalTool: 'GIT',
-          id: 'https://github.com/my-ent-org-2/A2',
-          github: {
-            pullRequest: {
-              number: 987,
-              url: 'https://github.com/my-ent-org-2/A2/pull/987',
+      expect(response.body).toEqual({
+        imports: [
+          {
+            approvalTool: 'GIT',
+            id: 'https://github.com/my-ent-org-1/A1',
+            repository: {
+              name: 'A1',
+              organization: 'my-ent-org-1',
+              url: 'https://github.com/my-ent-org-1/A1',
+              defaultBranch: 'dev',
+              id: 'my-ent-org-1/A1',
             },
+            status: 'ADDED',
           },
-          repository: {
-            name: 'A2',
-            organization: 'my-ent-org-2',
-            url: 'https://github.com/my-ent-org-2/A2',
-            defaultBranch: 'master',
-            id: 'my-ent-org-2/A2',
-          },
-          status: 'WAIT_PR_APPROVAL',
-        },
-        {
-          approvalTool: 'GIT',
-          errors: [
-            'could not find out if there is an import PR open on this repo',
-          ],
-          id: 'https://github.com/my-ent-org-1/B',
-          repository: {
-            name: 'B',
-            organization: 'my-ent-org-1',
-            url: 'https://github.com/my-ent-org-1/B',
-            defaultBranch: 'main',
-            id: 'my-ent-org-1/B',
-          },
-          status: 'PR_ERROR',
-        },
-        {
-          approvalTool: 'GIT',
-          id: 'https://github.com/my-ent-org-3/C',
-          repository: {
-            defaultBranch: 'blob/some/path/to/default/branch',
-            id: 'my-ent-org-3/C',
-            name: 'C',
-            organization: 'my-ent-org-3',
-            url: 'https://github.com/my-ent-org-3/C',
-          },
-          status: null,
-        },
-        {
-          approvalTool: 'GIT',
-          id: 'https://github.com/my-org-1/my-repo-with-existing-catalog-info-in-default-branch',
-          repository: {
-            defaultBranch: 'main',
-            id: 'my-org-1/my-repo-with-existing-catalog-info-in-default-branch',
-            name: 'my-repo-with-existing-catalog-info-in-default-branch',
-            organization: 'my-org-1',
-            url: 'https://github.com/my-org-1/my-repo-with-existing-catalog-info-in-default-branch',
-          },
-          status: 'ADDED',
-        },
-        {
-          approvalTool: 'GIT',
-          github: {
-            pullRequest: {
-              number: 100,
-              url: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-import-pr/pull/100',
+          {
+            approvalTool: 'GIT',
+            id: 'https://github.com/my-ent-org-2/A2',
+            github: {
+              pullRequest: {
+                number: 987,
+                url: 'https://github.com/my-ent-org-2/A2/pull/987',
+              },
             },
+            repository: {
+              name: 'A2',
+              organization: 'my-ent-org-2',
+              url: 'https://github.com/my-ent-org-2/A2',
+              defaultBranch: 'master',
+              id: 'my-ent-org-2/A2',
+            },
+            status: 'WAIT_PR_APPROVAL',
           },
-          id: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-import-pr',
-          repository: {
-            defaultBranch: 'main',
-            id: 'my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-import-pr',
-            name: 'my-repo-with-no-catalog-info-in-default-branch-and-import-pr',
-            organization: 'my-org-1',
-            url: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-import-pr',
+          {
+            approvalTool: 'GIT',
+            errors: [
+              'could not find out if there is an import PR open on this repo',
+            ],
+            id: 'https://github.com/my-ent-org-1/B',
+            repository: {
+              name: 'B',
+              organization: 'my-ent-org-1',
+              url: 'https://github.com/my-ent-org-1/B',
+              defaultBranch: 'main',
+              id: 'my-ent-org-1/B',
+            },
+            status: 'PR_ERROR',
           },
-          status: 'WAIT_PR_APPROVAL',
-        },
-        {
-          approvalTool: 'GIT',
-          id: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-no-import-pr',
-          repository: {
-            defaultBranch: 'main',
-            id: 'my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-no-import-pr',
-            name: 'my-repo-with-no-catalog-info-in-default-branch-and-no-import-pr',
-            organization: 'my-org-1',
-            url: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-no-import-pr',
+          {
+            approvalTool: 'GIT',
+            id: 'https://github.com/my-ent-org-3/C',
+            repository: {
+              defaultBranch: 'blob/some/path/to/default/branch',
+              id: 'my-ent-org-3/C',
+              name: 'C',
+              organization: 'my-ent-org-3',
+              url: 'https://github.com/my-ent-org-3/C',
+            },
+            status: null,
           },
-          status: null,
-        },
-      ]);
+          {
+            approvalTool: 'GIT',
+            id: 'https://github.com/my-org-1/my-repo-with-existing-catalog-info-in-default-branch',
+            repository: {
+              defaultBranch: 'main',
+              id: 'my-org-1/my-repo-with-existing-catalog-info-in-default-branch',
+              name: 'my-repo-with-existing-catalog-info-in-default-branch',
+              organization: 'my-org-1',
+              url: 'https://github.com/my-org-1/my-repo-with-existing-catalog-info-in-default-branch',
+            },
+            status: 'ADDED',
+          },
+          {
+            approvalTool: 'GIT',
+            github: {
+              pullRequest: {
+                number: 100,
+                url: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-import-pr/pull/100',
+              },
+            },
+            id: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-import-pr',
+            repository: {
+              defaultBranch: 'main',
+              id: 'my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-import-pr',
+              name: 'my-repo-with-no-catalog-info-in-default-branch-and-import-pr',
+              organization: 'my-org-1',
+              url: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-import-pr',
+            },
+            status: 'WAIT_PR_APPROVAL',
+          },
+          {
+            approvalTool: 'GIT',
+            id: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-no-import-pr',
+            repository: {
+              defaultBranch: 'main',
+              id: 'my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-no-import-pr',
+              name: 'my-repo-with-no-catalog-info-in-default-branch-and-no-import-pr',
+              organization: 'my-org-1',
+              url: 'https://github.com/my-org-1/my-repo-with-no-catalog-info-in-default-branch-and-no-import-pr',
+            },
+            status: null,
+          },
+        ],
+        page: 1,
+        size: 20,
+        totalCount: 7,
+      });
       // Location entity refresh triggered twice (on each 'ADDED' repo)
       expect(mockCatalogClient.refreshEntity).toHaveBeenCalledTimes(2);
     });
